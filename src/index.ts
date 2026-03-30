@@ -98,7 +98,7 @@ app.post(
 app.use(clerkMiddleware());          // Clerk auth middleware
 app.use(express.json());             // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-app.use(cors({ origin: ['http://localhost:3000'], credentials: true }));
+app.use(cors({ origin: ['http://localhost:3000','https://focusreader-ai.onrender.com','https://focusreader-ai.vercel.app'], credentials: true }));
 
 // ==============================
 // 🟢 HEALTH CHECK
