@@ -10,6 +10,7 @@ import NoteRoute from './routes/notes';
 import RecentFileRoute from './routes/recentfile';
 import AiRoutes from './routes/airoutes';
 import { log } from './utils/logger';
+import { protectRoute } from './middleware/auth';
 
 dotenv.config();
 
@@ -115,10 +116,10 @@ app.get('/', (req, res) => {
 // ==============================
 // 📁 ROUTES (ALL PROTECTED WITH requireAuth)
 // ==============================
-app.use('/api/folders', requireAuth(), FolderRoute);
-app.use('/api/notes', requireAuth(), NoteRoute);
-app.use('/api/recent', requireAuth(), RecentFileRoute);
-app.use('/api/model', requireAuth(), AiRoutes);
+app.use('/api/folders', protectRoute, FolderRoute);
+app.use('/api/notes', protectRoute, NoteRoute);
+app.use('/api/recent', protectRoute, RecentFileRoute);
+app.use('/api/model', protectRoute, AiRoutes);
 
 // ==============================
 // 🍃 MONGODB CONNECTION
