@@ -95,10 +95,10 @@ app.post(
 // ==============================
 // 🔐 NORMAL MIDDLEWARE
 // ==============================
+app.use(cors());                     // Allow all CORS
 app.use(clerkMiddleware());          // Clerk auth middleware
 app.use(express.json());             // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-app.use(cors());
 
 // ==============================
 // 🟢 HEALTH CHECK
