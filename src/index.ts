@@ -98,11 +98,11 @@ app.post(
 // ==============================
 app.use(
   cors({
-    origin: "https://focusreader-ai.onrender.com",
+    origin: true,
     credentials: true,
   })
 );                 // Allow all CORS
-app.use(clerkMiddleware());          // Clerk auth middleware
+app.use(clerkMiddleware({ secretKey: process.env.CLERK_SECRET_KEY || '', publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '' }));          // Clerk auth middleware
 app.use(express.json());             // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
@@ -116,10 +116,10 @@ app.get('/', (req, res) => {
 // ==============================
 // 📁 ROUTES (ALL PROTECTED WITH requireAuth)
 // ==============================
-app.use('/api/folders', protectRoute, FolderRoute);
-app.use('/api/notes', protectRoute, NoteRoute);
-app.use('/api/recent', protectRoute, RecentFileRoute);
-app.use('/api/model', protectRoute, AiRoutes);
+app.use('/api/folders', requireAuth(), FolderRoute);
+app.use('/api/notes', requireAuth(), NoteRoute);
+app.use('/api/recent', requireAuth(), RecentFileRoute);
+app.use('/api/model', requireAuth(), AiRoutes);
 
 // ==============================
 // 🍃 MONGODB CONNECTION
