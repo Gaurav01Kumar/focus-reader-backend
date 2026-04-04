@@ -95,14 +95,20 @@ app.get('/auth/google/callback',
       { expiresIn: '7d' }
     );
 
-    res.cookie('app_auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    try {
+      res.cookie('app_auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
 
-    res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
+      const clientUrl = process.env.CLIENT_URL || 'https://focusreader-ai.onrender.com/';
+      res.redirect(clientUrl);
+    } catch (error) {
+      log('Error in google callback', error);
+      res.redirect(`${process.env.CLIENT_URL || 'https://focusreader-ai.onrender.com/'}/login?error=auth_failed`);
+    }
   }
 );
 
