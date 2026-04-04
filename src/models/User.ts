@@ -1,15 +1,16 @@
 import { Schema, model, Document } from 'mongoose';
 
 export interface IUser extends Document {
-  clerkId: string;
+  googleId: string;
   displayName?: string;
   email?: string;
   image?: string;
+  password?: string;
 }
 
 const UserSchema = new Schema<IUser>(
   {
-    clerkId: {
+    googleId: {
       type: String,
       required: true,
       unique: true,
@@ -17,6 +18,9 @@ const UserSchema = new Schema<IUser>(
     displayName: String,
     email: String,
     image: String,
+    password: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

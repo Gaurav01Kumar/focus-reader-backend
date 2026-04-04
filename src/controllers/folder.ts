@@ -1,25 +1,13 @@
 import { Request, Response } from 'express';
 import Folder from '../models/Folder';
 import { successResponse, errorResponse } from '../utils/response';
-import { getAuth } from '@clerk/express';
 import { log } from '../utils/logger';
 import User from '../models/User';
-// Helper to get user ID from Clerk
-const getClerkId = (req: Request) => {
-  const { userId } = getAuth(req);
-  if (!userId) throw new Error('Unauthorized');
-
-  return userId;
-};
 
 export const getFolders = async (req: Request, res: Response) => {
   try {
-    const clerkId = getClerkId(req);
-    const user = await User.findOne({
-      clerkId
-    });
-    if (!user) return errorResponse(res, 'User not found', null, 404);  
-    const folders = await Folder.find({ user: user._id });
+    const userId = (req as any).user.id;
+    const folders = await Folder.find({ user: userId });
     return successResponse(res, 'Folders fetched successfully', folders);
   } catch (err: any) {
     log('Error fetching folders', err.message);
@@ -29,29 +17,22 @@ export const getFolders = async (req: Request, res: Response) => {
 
 export const createFolder = async (req: Request, res: Response) => {
   try {
-    const clerkId = getClerkId(req);
+    const userId = (req as any).user.id;
     const { name, description, color } = req.body;
 
     if (!name) {
       return errorResponse(res, 'Folder name is required', 400);
     }
 
-    const user = await User.findOne({
-      clerkId
-    });
-    if (!user) {
-      return errorResponse(res, 'User not found', 404);
-    }
-
     const newFolder = new Folder({
-      user: user?._id,
+      user: userId,
       name,
       description,
       color,
     });
 
     const folder = await newFolder.save();
-    log('Folder created', { folderId: folder._id, userId: clerkId });
+    log('Folder created', { folderId: folder._id, userId });
     return successResponse(res, 'Folder created successfully', folder, 201);
   } catch (err: any) {
     log('Error creating folder', err.message);
@@ -61,7 +42,7 @@ export const createFolder = async (req: Request, res: Response) => {
 
 export const updateFolder = async (req: Request, res: Response) => {
   try {
-    const clerkId = getClerkId(req);
+    const userId = (req as any).user.id;
     const { name, description, color } = req.body;
 
     const folder = await Folder.findById(req.params.id);
@@ -70,7 +51,7 @@ export const updateFolder = async (req: Request, res: Response) => {
       return errorResponse(res, 'Folder not found', 404);
     }
 
-    if (folder.user.toString() !== clerkId) {
+    if (folder.user.toString() !== userId) {
       return errorResponse(res, 'Not authorized', 401);
     }
 
@@ -89,14 +70,14 @@ export const updateFolder = async (req: Request, res: Response) => {
 
 export const deleteFolder = async (req: Request, res: Response) => {
   try {
-    const clerkId = getClerkId(req);
+    const userId = (req as any).user.id;
 
     const folder = await Folder.findById(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
 
-    // if (folder.user.toString() !== clerkId) {
-    //   return errorResponse(res, 'Not authorized', 401);
-    // }
+    if (folder.user.toString() !== userId) {
+      return errorResponse(res, 'Not authorized', 401);
+    }
 
     await folder.deleteOne();
     log('Folder deleted', { folderId: req.params.id });
@@ -109,8 +90,8 @@ export const deleteFolder = async (req: Request, res: Response) => {
 
 export const getFolderById = async (req: Request, res: Response) => {
   try {
-    const clerkId = getClerkId(req);
-    const folder = await Folder.findOne({ _id: req.params.id, user: clerkId });
+    const userId = (req as any).user.id;
+    const folder = await Folder.findOne({ _id: req.params.id, user: userId });
 
     if (!folder) return errorResponse(res, 'Folder not found', 404);
     return successResponse(res, 'Folder fetched successfully', folder);

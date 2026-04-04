@@ -1,42 +1,42 @@
 import { Request, Response } from 'express';
 import { log } from '../utils/logger';
 import { errorResponse, successResponse } from '../utils/response';
-import { getAuth } from '@clerk/express';
+
 
 export const aiTutor = async (req: Request, res: Response): Promise<any> => {
     try {
         log("AI Tutor request received.");
 
-        const { userId } = getAuth(req);
+        const userId = (req as any).user?.id;
 
         if (!userId) {
             log("Unauthorized access attempt.");
             return errorResponse(res, "Unauthorized access", 401);
         }
-        
+
         log(`Request from user ID: ${userId}`);
 
-        const { user_input ,type} = req.body;
+        const { user_input, type } = req.body;
         if (!user_input) {
             log("No user input provided.");
             return errorResponse(res, "User input is required", 400);
         }
         log(`User input: ${user_input}`);
 
-      
 
-       
-           let promptPrefix = "";
-    if (type === 'summarize') {
-      promptPrefix = "Summarize the following text from a book in simple terms: ";
-    } else if (type === 'examples') {
-      promptPrefix = "Give real-world examples related to this concept from the book: ";
-    } else if (type === 'explain') {
-      promptPrefix = "Explain this concept or paragraph from a book in simple terms: ";
-    } else {
-      promptPrefix = "Help the student understand the following text from a book: ";
-    }
-   const prompt = `
+
+
+        let promptPrefix = "";
+        if (type === 'summarize') {
+            promptPrefix = "Summarize the following text from a book in simple terms: ";
+        } else if (type === 'examples') {
+            promptPrefix = "Give real-world examples related to this concept from the book: ";
+        } else if (type === 'explain') {
+            promptPrefix = "Explain this concept or paragraph from a book in simple terms: ";
+        } else {
+            promptPrefix = "Help the student understand the following text from a book: ";
+        }
+        const prompt = `
 You are an expert AI Tutor. ${promptPrefix} "${user_input}".
 
 Guidelines:
@@ -146,13 +146,13 @@ Guidelines:
 };
 export const generateQuiz = async (req: Request, res: Response): Promise<any> => {
     try {
-        const { userId } = getAuth(req);
+        const userId = (req as any).user?.id;
         if (!userId) return errorResponse(res, "Unauthorized", 401);
 
         const { text } = req.body;
         if (!text) return errorResponse(res, "Text is required", 400);
 
-       const prompt = `
+        const prompt = `
 Generate a 3-question multiple choice quiz based on the following text.
 Each question must have 4 options and one correct answer.
 Return ONLY a JSON array of objects with this structure:
@@ -192,10 +192,10 @@ Text: ${text}
 
         const result = await response.json();
         const content = result.choices?.[0]?.message?.content;
-        
+
         try {
             const quizData = JSON.parse(content);
-            return successResponse(res,"Ai Question Generated Successfully", quizData);
+            return successResponse(res, "Ai Question Generated Successfully", quizData);
         } catch (parseError) {
             return errorResponse(res, "Failed to parse quiz data", 500);
         }

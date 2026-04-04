@@ -2,15 +2,18 @@ import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { Webhook } from 'svix';
-import { clerkMiddleware, requireAuth, getAuth } from '@clerk/express';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
 import User from './models/User';
 import FolderRoute from './routes/folder';
 import NoteRoute from './routes/notes';
 import RecentFileRoute from './routes/recentfile';
 import AiRoutes from './routes/airoutes';
 import { log } from './utils/logger';
-import { protectRoute } from './middleware/auth';
+import ensureAuth from './middleware/auth';
+import { successResponse } from './utils/response';
 
 dotenv.config();
 
@@ -26,75 +29,40 @@ app.use((req, res, next) => {
 });
 
 // ==============================
-// 🚀 WEBHOOK ROUTE
+// 🔐 PASSPORT CONFIG
 // ==============================
-app.post(
-  '/webhook',
-  express.raw({ type: 'application/json' }), // raw body for webhook
-  async (req, res) => {
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID || '',
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  callbackURL: "/auth/google/callback"
+},
+  async (accessToken, refreshToken, profile, done) => {
     try {
-      const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
-      if (!webhookSecret) throw new Error('Missing CLERK_WEBHOOK_SECRET');
-
-      const wh = new Webhook(webhookSecret);
-      let evt: any;
-
-      try {
-        evt = wh.verify(req.body, req.headers as any);
-      } catch (err) {
-        log('❌ Webhook verification failed');
-        return res.sendStatus(400);
+      let user = await User.findOne({ googleId: profile.id });
+      if (!user) {
+        user = await User.create({
+          googleId: profile.id,
+          displayName: profile.displayName,
+          email: profile.emails?.[0].value,
+          image: profile.photos?.[0].value,
+        });
+        log('✅ New user created via Google');
       }
-
-      log(`📩 Webhook Event received: ${evt.type}`);
-
-      const userData = evt.data;
-
-      switch (evt.type) {
-        case 'user.created':
-          const existingUser = await User.findOne({ clerkId: userData.id });
-          if (!existingUser) {
-            await User.create({
-              clerkId: userData.id,
-              displayName: `${userData.first_name || ''} ${userData.last_name || ''}`,
-              email: userData.email_addresses?.[0]?.email_address,
-              image: userData.image_url,
-            });
-            log('✅ User created in DB');
-          }
-          break;
-
-        case 'user.updated':
-          await User.findOneAndUpdate(
-            { clerkId: userData.id },
-            {
-              displayName: `${userData.first_name || ''} ${userData.last_name || ''}`,
-              email: userData.email_addresses?.[0]?.email_address,
-              image: userData.image_url,
-            }
-          );
-          log('🔄 User updated');
-          break;
-
-        case 'user.deleted':
-          await User.findOneAndDelete({ clerkId: userData.id });
-          log('🗑️ User deleted');
-          break;
-
-        default:
-          log(`⚡ Event ignored: ${evt.type}`);
-      }
-
-      return res.sendStatus(200);
-    } catch (error) {
-      log('🔥 Webhook error:', error);
-      return res.sendStatus(500);
+      return done(null, user);
+    } catch (err) {
+      return done(err, undefined);
     }
   }
-);
+));
+
+passport.serializeUser((user: any, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id);
+  done(null, user);
+});
 
 // ==============================
-// 🔐 NORMAL MIDDLEWARE
+// 🔐 MIDDLEWARE
 // ==============================
 app.use(
   cors({
@@ -102,7 +70,7 @@ app.use(
     credentials: true,
   })
 );                 // Allow all CORS
-app.use(clerkMiddleware({ secretKey: process.env.CLERK_SECRET_KEY || '', publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '' }));          // Clerk auth middleware
+app.use(cookieParser());
 app.use(express.json());             // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
@@ -114,12 +82,53 @@ app.get('/', (req, res) => {
 });
 
 // ==============================
-// 📁 ROUTES (ALL PROTECTED WITH requireAuth)
+// 🔑 AUTH ROUTES
 // ==============================
-app.use('/api/folders', requireAuth(), FolderRoute);
-app.use('/api/notes', requireAuth(), NoteRoute);
-app.use('/api/recent', requireAuth(), RecentFileRoute);
-app.use('/api/model', requireAuth(), AiRoutes);
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
+  (req: any, res) => {
+    const token = jwt.sign(
+      { id: req.user._id, email: req.user.email },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('app_auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
+  }
+);
+
+app.get('/auth/logout', (req, res, next) => {
+  res.clearCookie('app_auth_token');
+  res.status(200).json({ message: 'Logged out' });
+});
+// get profile from token to check auth 
+app.get('/api/auth/me', ensureAuth, async (req: any, res) => {
+  const user = req.user;
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  return successResponse(res, "User fetched successfully", user, 200);
+});
+// ==============================
+// 📁 ROUTES (PROTECTED)
+// ==============================
+
+
+app.use('/api/folders', ensureAuth, FolderRoute);
+app.use('/api/notes', ensureAuth, NoteRoute);
+app.use('/api/recent', ensureAuth, RecentFileRoute);
+app.use('/api/model', ensureAuth, AiRoutes);
+
 
 // ==============================
 // 🍃 MONGODB CONNECTION
