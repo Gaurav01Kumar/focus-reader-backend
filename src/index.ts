@@ -73,6 +73,8 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());             // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(express.text({ type: 'text/plain' }));
+
 
 // ==============================
 // 🟢 HEALTH CHECK

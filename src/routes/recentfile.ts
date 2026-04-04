@@ -4,6 +4,7 @@ import {
   createRecentFile,
   deleteRecentFile,
   getRecentFileById,
+  updateLastReadPage,
 } from "../controllers/recent";
 
 const router = Router();
@@ -19,5 +20,8 @@ router.post('/', createRecentFile);
 
 // @route   DELETE /api/recent/:id
 router.delete('/:id', deleteRecentFile);
+
+// update last read 
+router.post('/update-last-read-page', updateLastReadPage)
 
 export default router;
