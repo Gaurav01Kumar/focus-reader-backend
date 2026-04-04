@@ -110,7 +110,8 @@ app.get('/auth/google/callback',
       res.redirect(`${process.env.CLIENT_URL || 'https://focusreader-ai.onrender.com/'}/login?error=auth_failed`);
     }
   }
-);
+)
+
 
 app.get('/auth/logout', (req, res, next) => {
   res.clearCookie('app_auth_token');
